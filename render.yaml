@@ -1,0 +1,69 @@
+﻿services:
+  - type: web
+    name: mindspark-api
+    runtime: node
+    plan: starter
+    rootDir: .
+    buildCommand: npm ci && npm run build -w apps/api
+    preDeployCommand: npm run db:push -w apps/api
+    startCommand: npm run start -w apps/api
+    healthCheckPath: /api/health
+    buildFilter:
+      paths:
+        - apps/api/**
+        - package.json
+        - package-lock.json
+        - render.yaml
+    envVars:
+      - key: PORT
+        value: 4000
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: CLIENT_URL
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mindspark-db
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: OPENAI_COMPAT_API_KEY
+        sync: false
+      - key: OPENAI_COMPAT_BASE_URL
+        value: https://api.agentplatform.ru/v1
+      - key: OPENAI_COMPAT_MODEL
+        value: mistralai/mistral-nemo
+      - key: COOKIE_SECURE
+        value: true
+
+  - type: web
+    name: mindspark-web
+    runtime: static
+    rootDir: .
+    buildCommand: npm ci && npm run build -w apps/web
+    staticPublishPath: apps/web/dist
+    buildFilter:
+      paths:
+        - apps/web/**
+        - package.json
+        - package-lock.json
+        - render.yaml
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: mindspark-api
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+
+
+databases:
+  - name: mindspark-db
+    plan: starter
+    databaseName: mindspark
+    user: mindspark
