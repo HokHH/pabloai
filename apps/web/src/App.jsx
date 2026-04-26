@@ -345,11 +345,7 @@ function EgeTrainer({ accessToken }) {
                 ) : (
                   <div>{selectedTask.statement}</div>
                 )}
-                {selectedTask.sourceUrl ? (
-                  <a className="ege-source-link" href={selectedTask.sourceUrl} target="_blank" rel="noreferrer">
-                    РЕШУ ЕГЭ: математика профильного уровня{selectedTask.sourceTaskId ? `, ID ${selectedTask.sourceTaskId}` : ""}
-                  </a>
-                ) : null}
+                <div className="ege-source-note">Профильная математика ЕГЭ · тип {selectedTask.number}</div>
               </div>
 
               <div className="ege-task-picker">
@@ -387,11 +383,11 @@ function EgeTrainer({ accessToken }) {
               ) : null}
 
               <div className="ege-actions">
-                <button className="ghost-btn" onClick={() => explainTask("hint")} disabled={explaining} type="button">Подсказка</button>
-                <button className="ghost-btn" onClick={() => explainTask("balanced")} disabled={explaining} type="button">Разбор</button>
-                <button className="ghost-btn" onClick={() => explainTask("deep")} disabled={explaining} type="button">Подробно</button>
+                <button className="ghost-btn compact-btn" onClick={() => explainTask("hint")} disabled={explaining} type="button">Подсказка</button>
+                <button className="ghost-btn compact-btn" onClick={() => explainTask("balanced")} disabled={explaining} type="button">Разбор</button>
+                <button className="ghost-btn compact-btn" onClick={() => explainTask("deep")} disabled={explaining} type="button">Подробно</button>
                 {explaining ? (
-                  <button className="ghost-btn danger-text" onClick={() => explainAbortRef.current?.abort()} type="button">Остановить</button>
+                  <button className="ghost-btn compact-btn danger-text" onClick={() => explainAbortRef.current?.abort()} type="button">Остановить</button>
                 ) : null}
               </div>
 

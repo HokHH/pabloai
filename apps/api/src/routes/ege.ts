@@ -24,22 +24,32 @@ function publicTask(task: (typeof egeTasks)[number]) {
     difficulty: task.difficulty,
     statement: task.statement,
     imageUrl: task.imageUrl,
-    sourceUrl: task.sourceUrl,
-    sourceTaskId: task.sourceTaskId,
     hint: task.hint,
   };
 }
 
 function getModeInstruction(mode: z.infer<typeof explainSchema>["mode"]) {
   if (mode === "hint") {
-    return "Дай только наводящую подсказку без полного решения и без финального ответа.";
+    return [
+      "Режим: подсказка.",
+      "Не раскрывай ответ и не пиши полное решение.",
+      "Дай 1-2 направляющих шага: какую формулу вспомнить, что обозначить, где обычно ошибаются.",
+    ].join("\n");
   }
 
   if (mode === "deep") {
-    return "Разбери задачу подробно по шагам, объясняя каждый переход как репетитор ЕГЭ.";
+    return [
+      "Режим: подробный разбор.",
+      "Структура ответа: тип задания, идея решения, шаги вычисления, типичная ошибка, короткая проверка.",
+      "Пиши как репетитор профильного ЕГЭ: понятно, но без лишней болтовни.",
+    ].join("\n");
   }
 
-  return "Дай короткий разбор по шагам и заверши проверочным вопросом ученику.";
+  return [
+    "Режим: короткий разбор.",
+    "Структура ответа: идея решения, 2-4 шага, финальная проверка.",
+    "Если ученик прислал ответ, сначала оцени его и покажи, где мог появиться промах.",
+  ].join("\n");
 }
 
 router.get("/tasks", (req, res) => {
@@ -75,14 +85,6 @@ router.post("/tasks/:taskId/check", async (req, res, next) => {
     }
 
     const data = checkSchema.parse(req.body);
-    if (!task.answer) {
-      res.json({
-        correct: false,
-        hint: "Для этого задания пока включён режим разбора без автоматической проверки. Нажми «Разбор», и Spark проверит ход решения.",
-      });
-      return;
-    }
-
     const correct = normalizeAnswer(data.answer) === normalizeAnswer(task.answer);
 
     await prisma.egeAttempt.create({
@@ -124,8 +126,14 @@ router.post("/tasks/:taskId/explain/stream", async (req, res, next) => {
     await streamTutorCompletion(res, [
       {
         role: "system",
-        content:
-          "Ты AI-репетитор по профильной математике ЕГЭ. Готовь ученика к экзамену: объясняй тип задания, метод решения, типичные ошибки и не превращай ответ в сухую шпаргалку.",
+        content: [
+          "Ты AI-репетитор по профильной математике ЕГЭ.",
+          "Твоя задача - готовить ученика к экзамену, а не просто выдавать ответ.",
+          "Всегда держи фокус на типе задания, методе решения, аккуратных вычислениях и типичных ошибках.",
+          "Используй математическую запись в человекочитаемом виде: log₂, x², √, 10⁻⁵, дроби через /.",
+          "Не ссылайся на источники и сайты в ответе.",
+          "Не упоминай внутренние ID задания.",
+        ].join("\n"),
       },
       { role: "system", content: getModeInstruction(data.mode) },
       {
@@ -134,8 +142,6 @@ router.post("/tasks/:taskId/explain/stream", async (req, res, next) => {
           `Номер ЕГЭ: ${task.number}`,
           `Тема: ${task.topic}`,
           `Условие: ${task.statement}`,
-          task.sourceUrl ? `Источник: ${task.sourceUrl}` : "",
-          task.sourceTaskId ? `ID задания в открытом банке: ${task.sourceTaskId}` : "",
           `Правильный ответ: ${task.answer}`,
           `Эталонное решение: ${task.solution}`,
           data.studentAnswer ? `Ответ ученика: ${data.studentAnswer}` : "",
