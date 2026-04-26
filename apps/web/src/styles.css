@@ -633,6 +633,26 @@ button { cursor: pointer; }
   background: white;
 }
 
+.ege-task-html {
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.ege-task-html img {
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+}
+
+.ege-task-html .tex {
+  display: inline-block;
+  margin: 0 2px;
+}
+
+.ege-task-html p {
+  margin: 0 0 8px;
+}
+
 .ege-source-note {
   width: fit-content;
   color: var(--muted);

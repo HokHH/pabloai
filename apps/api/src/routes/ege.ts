@@ -1,7 +1,13 @@
 import { Router } from "express";
-import createHttpError from "http-errors";
 import { z } from "zod";
-import { egeTasks, getEgeTask, normalizeAnswer } from "../data/egeTasks.js";
+import { normalizeAnswer } from "../data/egeTasks.js";
+import {
+  fetchRandomRealEgeTask,
+  fetchRealEgeTask,
+  getRealEgeNumbers,
+  getRealEgePoolSize,
+  type RealEgeTask,
+} from "../lib/sdamgia.js";
 import { prisma } from "../lib/prisma.js";
 import { streamTutorCompletion } from "../lib/llm.js";
 
@@ -16,19 +22,16 @@ const explainSchema = z.object({
   studentAnswer: z.string().max(4000).optional(),
 });
 
-function publicTask(task: (typeof egeTasks)[number]) {
+function publicTask(task: RealEgeTask) {
   return {
     id: task.id,
     number: task.number,
     topic: task.topic,
     difficulty: task.difficulty,
     statement: task.statement,
+    statementHtml: task.statementHtml,
     hint: task.hint,
   };
-}
-
-function randomItem<T>(items: T[]) {
-  return items[Math.floor(Math.random() * items.length)];
 }
 
 function getModeInstruction(mode: z.infer<typeof explainSchema>["mode"]) {
@@ -55,33 +58,34 @@ function getModeInstruction(mode: z.infer<typeof explainSchema>["mode"]) {
   ].join("\n");
 }
 
-router.get("/tasks", (req, res) => {
-  const number = Number(req.query.number);
-  const numbers = [...new Set(egeTasks.map((task) => task.number))].sort((a, b) => a - b);
-
-  if (Number.isInteger(number)) {
-    const tasks = egeTasks.filter((task) => task.number === number);
-    res.json({
-      tasks: tasks.length ? [publicTask(randomItem(tasks))] : [],
-      numbers,
-      totalByNumber: tasks.length,
-    });
-    return;
-  }
-
-  res.json({
-    tasks: numbers.map((taskNumber) => publicTask(randomItem(egeTasks.filter((task) => task.number === taskNumber)))),
-    numbers,
-  });
-});
-
-router.get("/tasks/:taskId", (req, res, next) => {
+router.get("/tasks", async (req, res, next) => {
   try {
-    const task = getEgeTask(req.params.taskId);
-    if (!task) {
-      throw createHttpError(404, "Задание не найдено");
+    const number = Number(req.query.number);
+    const numbers = getRealEgeNumbers();
+
+    if (Number.isInteger(number)) {
+      const task = await fetchRandomRealEgeTask(number);
+      res.json({
+        tasks: [publicTask(task)],
+        numbers,
+        totalByNumber: getRealEgePoolSize(number),
+      });
+      return;
     }
 
+    const tasks = await Promise.all(numbers.map((taskNumber) => fetchRandomRealEgeTask(taskNumber)));
+    res.json({
+      tasks: tasks.map(publicTask),
+      numbers,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/tasks/:taskId", async (req, res, next) => {
+  try {
+    const task = await fetchRealEgeTask(req.params.taskId);
     res.json({ task: publicTask(task) });
   } catch (error) {
     next(error);
@@ -90,11 +94,7 @@ router.get("/tasks/:taskId", (req, res, next) => {
 
 router.post("/tasks/:taskId/check", async (req, res, next) => {
   try {
-    const task = getEgeTask(req.params.taskId);
-    if (!task) {
-      throw createHttpError(404, "Задание не найдено");
-    }
-
+    const task = await fetchRealEgeTask(req.params.taskId);
     const data = checkSchema.parse(req.body);
     const correct = normalizeAnswer(data.answer) === normalizeAnswer(task.answer);
 
@@ -122,11 +122,7 @@ router.post("/tasks/:taskId/check", async (req, res, next) => {
 
 router.post("/tasks/:taskId/explain/stream", async (req, res, next) => {
   try {
-    const task = getEgeTask(req.params.taskId);
-    if (!task) {
-      throw createHttpError(404, "Задание не найдено");
-    }
-
+    const task = await fetchRealEgeTask(req.params.taskId);
     const data = explainSchema.parse(req.body);
 
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");

@@ -349,6 +349,8 @@ function EgeTrainer({ accessToken }) {
               <div className="ege-task-body">
                 {selectedTask.imageUrl ? (
                   <img className="ege-task-image" src={selectedTask.imageUrl} alt={`Задание №${selectedTask.number} из открытого банка`} />
+                ) : selectedTask.statementHtml ? (
+                  <div className="ege-task-html" dangerouslySetInnerHTML={{ __html: selectedTask.statementHtml }} />
                 ) : (
                   <div>{selectedTask.statement}</div>
                 )}
