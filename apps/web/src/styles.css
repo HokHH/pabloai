@@ -638,15 +638,28 @@ button { cursor: pointer; }
   line-height: 1.7;
 }
 
+.ege-task-html,
+.ege-task-html * {
+  color: var(--text) !important;
+  background: transparent !important;
+}
+
 .ege-task-html img {
   max-width: 100%;
   height: auto;
   vertical-align: middle;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-radius: 6px;
+  padding: 2px;
 }
 
 .ege-task-html .tex {
   display: inline-block;
   margin: 0 2px;
+}
+
+:root[data-theme="dark"] .ege-task-html img.tex {
+  box-shadow: 0 0 0 1px rgba(255, 244, 232, 0.16);
 }
 
 .ege-task-html p {
