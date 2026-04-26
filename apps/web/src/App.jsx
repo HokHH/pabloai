@@ -16,8 +16,6 @@ const RESPONSE_MODES = [
   { id: "deep", label: "Подробнее" },
 ];
 
-const EGE_NUMBERS = Array.from({ length: 12 }, (_, index) => index + 1);
-
 const Icons = {
   spark: () => (
     <svg className="logo-glyph" viewBox="0 0 64 64" aria-hidden="true">
@@ -167,7 +165,8 @@ function AuthScreen({ mode, onModeChange, onSubmit, loading, error }) {
 }
 
 function EgeTrainer({ accessToken }) {
-  const [selectedNumber, setSelectedNumber] = useState(1);
+  const [selectedNumber, setSelectedNumber] = useState(2);
+  const [availableNumbers, setAvailableNumbers] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [answer, setAnswer] = useState("");
@@ -200,6 +199,7 @@ function EgeTrainer({ accessToken }) {
       try {
         const data = await apiRequest(`/ege/tasks?number=${selectedNumber}`, {}, accessToken);
         setTasks(data.tasks);
+        setAvailableNumbers(data.numbers || []);
         setSelectedTaskId(data.tasks[0]?.id || "");
       } catch (requestError) {
         setError(getErrorMessage(requestError));
@@ -210,6 +210,12 @@ function EgeTrainer({ accessToken }) {
 
     loadTasks();
   }, [accessToken, selectedNumber]);
+
+  useEffect(() => {
+    if (availableNumbers.length > 0 && !availableNumbers.includes(selectedNumber)) {
+      setSelectedNumber(availableNumbers[0]);
+    }
+  }, [availableNumbers, selectedNumber]);
 
   useEffect(() => {
     const loadProgress = async () => {
@@ -305,7 +311,7 @@ function EgeTrainer({ accessToken }) {
         <aside className="ege-number-panel">
           <div className="sidebar-section-title">Номера ЕГЭ</div>
           <div className="ege-number-grid">
-            {EGE_NUMBERS.map((number) => (
+            {(availableNumbers.length ? availableNumbers : [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]).map((number) => (
               <button
                 key={number}
                 className={`ege-number ${selectedNumber === number ? "active" : ""}`}
@@ -331,7 +337,18 @@ function EgeTrainer({ accessToken }) {
                 <div className={`difficulty-pill ${selectedTask.difficulty}`}>{selectedTask.difficulty}</div>
               </div>
 
-              <div className="ege-task-body">{selectedTask.statement}</div>
+              <div className="ege-task-body">
+                {selectedTask.imageUrl ? (
+                  <img className="ege-task-image" src={selectedTask.imageUrl} alt={`Задание №${selectedTask.number} из открытого банка`} />
+                ) : (
+                  <div>{selectedTask.statement}</div>
+                )}
+                {selectedTask.sourceUrl ? (
+                  <a className="ege-source-link" href={selectedTask.sourceUrl} target="_blank" rel="noreferrer">
+                    Открытый банк профильного ЕГЭ, ID {selectedTask.sourceTaskId}
+                  </a>
+                ) : null}
+              </div>
 
               <div className="ege-task-picker">
                 {tasks.map((task, index) => (

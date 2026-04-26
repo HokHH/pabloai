@@ -23,6 +23,9 @@ function publicTask(task: (typeof egeTasks)[number]) {
     topic: task.topic,
     difficulty: task.difficulty,
     statement: task.statement,
+    imageUrl: task.imageUrl,
+    sourceUrl: task.sourceUrl,
+    sourceTaskId: task.sourceTaskId,
     hint: task.hint,
   };
 }
@@ -72,6 +75,14 @@ router.post("/tasks/:taskId/check", async (req, res, next) => {
     }
 
     const data = checkSchema.parse(req.body);
+    if (!task.answer) {
+      res.json({
+        correct: false,
+        hint: "Для этого задания пока включён режим разбора без автоматической проверки. Нажми «Разбор», и Spark проверит ход решения.",
+      });
+      return;
+    }
+
     const correct = normalizeAnswer(data.answer) === normalizeAnswer(task.answer);
 
     await prisma.egeAttempt.create({
@@ -123,6 +134,8 @@ router.post("/tasks/:taskId/explain/stream", async (req, res, next) => {
           `Номер ЕГЭ: ${task.number}`,
           `Тема: ${task.topic}`,
           `Условие: ${task.statement}`,
+          task.sourceUrl ? `Источник: ${task.sourceUrl}` : "",
+          task.sourceTaskId ? `ID задания в открытом банке: ${task.sourceTaskId}` : "",
           `Правильный ответ: ${task.answer}`,
           `Эталонное решение: ${task.solution}`,
           data.studentAnswer ? `Ответ ученика: ${data.studentAnswer}` : "",
