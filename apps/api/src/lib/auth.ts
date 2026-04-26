@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import type { Response } from "express";
 import { env } from "../config/env.js";
 
-const ACCESS_TOKEN_TTL = "15m";
+const ACCESS_TOKEN_TTL = "7d";
 const REFRESH_TOKEN_TTL_DAYS = 30;
 const REFRESH_COOKIE_NAME = "mindspark_refresh";
 
@@ -32,7 +32,7 @@ export function getRefreshTokenExpiry() {
 export function attachRefreshCookie(res: Response, token: string, expires: Date) {
   res.cookie(REFRESH_COOKIE_NAME, token, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: env.COOKIE_SECURE ? "none" : "lax",
     secure: env.COOKIE_SECURE,
     expires,
     path: "/api/auth",
@@ -42,7 +42,7 @@ export function attachRefreshCookie(res: Response, token: string, expires: Date)
 export function clearRefreshCookie(res: Response) {
   res.clearCookie(REFRESH_COOKIE_NAME, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: env.COOKIE_SECURE ? "none" : "lax",
     secure: env.COOKIE_SECURE,
     path: "/api/auth",
   });

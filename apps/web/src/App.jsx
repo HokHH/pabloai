@@ -16,6 +16,8 @@ const RESPONSE_MODES = [
   { id: "deep", label: "Подробнее" },
 ];
 
+const AUTH_STORAGE_KEY = "mindspark_auth";
+
 const Icons = {
   spark: () => (
     <svg className="logo-glyph" viewBox="0 0 64 64" aria-hidden="true">
@@ -311,7 +313,7 @@ function EgeTrainer({ accessToken }) {
         <aside className="ege-number-panel">
           <div className="sidebar-section-title">Номера ЕГЭ</div>
           <div className="ege-number-grid">
-            {(availableNumbers.length ? availableNumbers : [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]).map((number) => (
+            {(availableNumbers.length ? availableNumbers : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]).map((number) => (
               <button
                 key={number}
                 className={`ege-number ${selectedNumber === number ? "active" : ""}`}
@@ -345,7 +347,7 @@ function EgeTrainer({ accessToken }) {
                 )}
                 {selectedTask.sourceUrl ? (
                   <a className="ege-source-link" href={selectedTask.sourceUrl} target="_blank" rel="noreferrer">
-                    Открытый банк профильного ЕГЭ, ID {selectedTask.sourceTaskId}
+                    РЕШУ ЕГЭ: математика профильного уровня{selectedTask.sourceTaskId ? `, ID ${selectedTask.sourceTaskId}` : ""}
                   </a>
                 ) : null}
               </div>
@@ -466,13 +468,30 @@ export default function App() {
 
   useEffect(() => {
     const bootstrap = async () => {
+      const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed?.user && parsed?.accessToken) {
+            setUser(parsed.user);
+            setAccessToken(parsed.accessToken);
+            setAuthLoading(false);
+          }
+        } catch {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        }
+      }
+
       try {
         const data = await apiRequest("/auth/refresh", { method: "POST" });
         setUser(data.user);
         setAccessToken(data.accessToken);
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: data.user, accessToken: data.accessToken }));
       } catch {
-        setUser(null);
-        setAccessToken("");
+        if (!stored) {
+          setUser(null);
+          setAccessToken("");
+        }
       } finally {
         setAuthLoading(false);
       }
@@ -542,6 +561,7 @@ export default function App() {
 
       setUser(data.user);
       setAccessToken(data.accessToken);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: data.user, accessToken: data.accessToken }));
       setChats([]);
       setActiveChatId(null);
     } catch (error) {
@@ -560,6 +580,7 @@ export default function App() {
 
     setUser(null);
     setAccessToken("");
+    localStorage.removeItem(AUTH_STORAGE_KEY);
     setChats([]);
     setMessages([]);
     setActiveChatId(null);
