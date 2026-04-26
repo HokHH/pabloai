@@ -175,6 +175,8 @@ function EgeTrainer({ accessToken }) {
   const [feedback, setFeedback] = useState(null);
   const [progress, setProgress] = useState(null);
   const [explanation, setExplanation] = useState("");
+  const [taskPoolSize, setTaskPoolSize] = useState(0);
+  const [taskReloadKey, setTaskReloadKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [explaining, setExplaining] = useState(false);
@@ -202,6 +204,7 @@ function EgeTrainer({ accessToken }) {
         const data = await apiRequest(`/ege/tasks?number=${selectedNumber}`, {}, accessToken);
         setTasks(data.tasks);
         setAvailableNumbers(data.numbers || []);
+        setTaskPoolSize(data.totalByNumber || data.tasks.length || 0);
         setSelectedTaskId(data.tasks[0]?.id || "");
       } catch (requestError) {
         setError(getErrorMessage(requestError));
@@ -211,7 +214,7 @@ function EgeTrainer({ accessToken }) {
     };
 
     loadTasks();
-  }, [accessToken, selectedNumber]);
+  }, [accessToken, selectedNumber, taskReloadKey]);
 
   useEffect(() => {
     if (availableNumbers.length > 0 && !availableNumbers.includes(selectedNumber)) {
@@ -293,6 +296,10 @@ function EgeTrainer({ accessToken }) {
     setError("");
   };
 
+  const loadAnotherTask = () => {
+    setTaskReloadKey((current) => current + 1);
+  };
+
   return (
     <section className="ege-workspace">
       <div className="ege-overview">
@@ -345,20 +352,13 @@ function EgeTrainer({ accessToken }) {
                 ) : (
                   <div>{selectedTask.statement}</div>
                 )}
-                <div className="ege-source-note">Профильная математика ЕГЭ · тип {selectedTask.number}</div>
+                <div className="ege-source-note">Профильная математика ЕГЭ · тип {selectedTask.number} · {taskPoolSize || 50} вариантов</div>
               </div>
 
               <div className="ege-task-picker">
-                {tasks.map((task, index) => (
-                  <button
-                    key={task.id}
-                    className={`ege-task-tab ${task.id === selectedTask.id ? "active" : ""}`}
-                    onClick={() => selectTask(task.id)}
-                    type="button"
-                  >
-                    Вариант {index + 1}
-                  </button>
-                ))}
+                <button className="ege-task-tab active" onClick={loadAnotherTask} type="button" disabled={loading}>
+                  Другое задание
+                </button>
               </div>
 
               <div className="ege-answer-row">

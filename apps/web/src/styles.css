@@ -187,11 +187,16 @@ button { cursor: pointer; }
 }
 .ghost-btn { padding: 9px 12px; }
 .compact-btn {
+  flex: 0 0 auto;
   min-height: 36px;
+  height: 36px;
+  min-width: 86px;
   padding: 8px 11px;
   border-radius: 12px;
   font-size: 13px;
   font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
 }
 .icon-btn {
   width: 42px;
@@ -641,12 +646,17 @@ button { cursor: pointer; }
 .ege-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
 .ege-task-tab {
-  padding: 7px 10px;
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 11px;
   font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .ege-answer-row {

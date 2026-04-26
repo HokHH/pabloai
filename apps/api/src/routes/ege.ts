@@ -23,9 +23,12 @@ function publicTask(task: (typeof egeTasks)[number]) {
     topic: task.topic,
     difficulty: task.difficulty,
     statement: task.statement,
-    imageUrl: task.imageUrl,
     hint: task.hint,
   };
+}
+
+function randomItem<T>(items: T[]) {
+  return items[Math.floor(Math.random() * items.length)];
 }
 
 function getModeInstruction(mode: z.infer<typeof explainSchema>["mode"]) {
@@ -54,13 +57,21 @@ function getModeInstruction(mode: z.infer<typeof explainSchema>["mode"]) {
 
 router.get("/tasks", (req, res) => {
   const number = Number(req.query.number);
-  const tasks = Number.isInteger(number)
-    ? egeTasks.filter((task) => task.number === number)
-    : egeTasks;
+  const numbers = [...new Set(egeTasks.map((task) => task.number))].sort((a, b) => a - b);
+
+  if (Number.isInteger(number)) {
+    const tasks = egeTasks.filter((task) => task.number === number);
+    res.json({
+      tasks: tasks.length ? [publicTask(randomItem(tasks))] : [],
+      numbers,
+      totalByNumber: tasks.length,
+    });
+    return;
+  }
 
   res.json({
-    tasks: tasks.map(publicTask),
-    numbers: [...new Set(egeTasks.map((task) => task.number))].sort((a, b) => a - b),
+    tasks: numbers.map((taskNumber) => publicTask(randomItem(egeTasks.filter((task) => task.number === taskNumber)))),
+    numbers,
   });
 });
 
