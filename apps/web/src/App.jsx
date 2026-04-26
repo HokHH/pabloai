@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
-import { apiRequest, streamChatMessage } from "./api.js";
+import { apiRequest, streamChatMessage, streamEgeExplanation } from "./api.js";
 
 const CHIPS = [
   "Объясни теорему Пифагора простыми словами",
@@ -15,6 +15,8 @@ const RESPONSE_MODES = [
   { id: "balanced", label: "Обычно" },
   { id: "deep", label: "Подробнее" },
 ];
+
+const EGE_NUMBERS = Array.from({ length: 12 }, (_, index) => index + 1);
 
 const Icons = {
   spark: () => (
@@ -164,6 +166,236 @@ function AuthScreen({ mode, onModeChange, onSubmit, loading, error }) {
   );
 }
 
+function EgeTrainer({ accessToken }) {
+  const [selectedNumber, setSelectedNumber] = useState(1);
+  const [tasks, setTasks] = useState([]);
+  const [selectedTaskId, setSelectedTaskId] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [feedback, setFeedback] = useState(null);
+  const [progress, setProgress] = useState(null);
+  const [explanation, setExplanation] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(false);
+  const [explaining, setExplaining] = useState(false);
+  const [error, setError] = useState("");
+  const explainAbortRef = useRef(null);
+
+  const selectedTask = useMemo(
+    () => tasks.find((task) => task.id === selectedTaskId) || tasks[0] || null,
+    [selectedTaskId, tasks],
+  );
+
+  const accuracy = progress?.total
+    ? Math.round((progress.correct / progress.total) * 100)
+    : 0;
+
+  useEffect(() => {
+    const loadTasks = async () => {
+      setLoading(true);
+      setError("");
+      setFeedback(null);
+      setExplanation("");
+      setAnswer("");
+
+      try {
+        const data = await apiRequest(`/ege/tasks?number=${selectedNumber}`, {}, accessToken);
+        setTasks(data.tasks);
+        setSelectedTaskId(data.tasks[0]?.id || "");
+      } catch (requestError) {
+        setError(getErrorMessage(requestError));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTasks();
+  }, [accessToken, selectedNumber]);
+
+  useEffect(() => {
+    const loadProgress = async () => {
+      try {
+        const data = await apiRequest("/ege/progress", {}, accessToken);
+        setProgress(data);
+      } catch {
+        setProgress(null);
+      }
+    };
+
+    loadProgress();
+  }, [accessToken, feedback]);
+
+  const checkAnswer = async () => {
+    if (!selectedTask || !answer.trim()) return;
+
+    setChecking(true);
+    setError("");
+
+    try {
+      const data = await apiRequest(
+        `/ege/tasks/${selectedTask.id}/check`,
+        { method: "POST", body: JSON.stringify({ answer }) },
+        accessToken,
+      );
+      setFeedback(data);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const explainTask = async (mode = "balanced") => {
+    if (!selectedTask || explaining) return;
+
+    setExplanation("");
+    setError("");
+    setExplaining(true);
+
+    const controller = new AbortController();
+    explainAbortRef.current = controller;
+
+    try {
+      let generated = "";
+      await streamEgeExplanation(
+        selectedTask.id,
+        mode,
+        answer,
+        accessToken,
+        (chunk) => {
+          generated += chunk;
+          setExplanation(generated);
+        },
+        controller.signal,
+      );
+    } catch (requestError) {
+      if (requestError.name !== "AbortError") {
+        setError(getErrorMessage(requestError));
+      }
+    } finally {
+      setExplaining(false);
+      explainAbortRef.current = null;
+    }
+  };
+
+  const selectTask = (taskId) => {
+    setSelectedTaskId(taskId);
+    setAnswer("");
+    setFeedback(null);
+    setExplanation("");
+    setError("");
+  };
+
+  return (
+    <section className="ege-workspace">
+      <div className="ege-overview">
+        <div>
+          <div className="hero-badge">ЕГЭ профиль</div>
+          <h2>Тренажёр по заданиям профильной математики</h2>
+          <p>Выбирай номер, решай задачу, проверяй ответ и получай разбор в формате репетитора.</p>
+        </div>
+        <div className="ege-score">
+          <strong>{progress?.total || 0}</strong>
+          <span>попыток</span>
+          <strong>{accuracy}%</strong>
+          <span>точность</span>
+        </div>
+      </div>
+
+      <div className="ege-layout">
+        <aside className="ege-number-panel">
+          <div className="sidebar-section-title">Номера ЕГЭ</div>
+          <div className="ege-number-grid">
+            {EGE_NUMBERS.map((number) => (
+              <button
+                key={number}
+                className={`ege-number ${selectedNumber === number ? "active" : ""}`}
+                onClick={() => setSelectedNumber(number)}
+                type="button"
+              >
+                {number}
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <div className="ege-task-panel">
+          {loading ? <div className="loading-strip">Загружаем задания...</div> : null}
+          {error ? <div className="form-error inline-error">{error}</div> : null}
+          {selectedTask ? (
+            <>
+              <div className="ege-task-head">
+                <div>
+                  <span>Задание №{selectedTask.number}</span>
+                  <h3>{selectedTask.topic}</h3>
+                </div>
+                <div className={`difficulty-pill ${selectedTask.difficulty}`}>{selectedTask.difficulty}</div>
+              </div>
+
+              <div className="ege-task-body">{selectedTask.statement}</div>
+
+              <div className="ege-task-picker">
+                {tasks.map((task, index) => (
+                  <button
+                    key={task.id}
+                    className={`ege-task-tab ${task.id === selectedTask.id ? "active" : ""}`}
+                    onClick={() => selectTask(task.id)}
+                    type="button"
+                  >
+                    Вариант {index + 1}
+                  </button>
+                ))}
+              </div>
+
+              <div className="ege-answer-row">
+                <input
+                  value={answer}
+                  onChange={(event) => setAnswer(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") checkAnswer();
+                  }}
+                  placeholder="Введи ответ"
+                />
+                <button className="primary-btn" onClick={checkAnswer} disabled={checking || !answer.trim()} type="button">
+                  {checking ? "Проверяем..." : "Проверить"}
+                </button>
+              </div>
+
+              {feedback ? (
+                <div className={`ege-feedback ${feedback.correct ? "correct" : "wrong"}`}>
+                  <strong>{feedback.correct ? "Верно" : "Пока не сходится"}</strong>
+                  <p>{feedback.correct ? feedback.solution : feedback.hint}</p>
+                </div>
+              ) : null}
+
+              <div className="ege-actions">
+                <button className="ghost-btn" onClick={() => explainTask("hint")} disabled={explaining} type="button">Подсказка</button>
+                <button className="ghost-btn" onClick={() => explainTask("balanced")} disabled={explaining} type="button">Разбор</button>
+                <button className="ghost-btn" onClick={() => explainTask("deep")} disabled={explaining} type="button">Подробно</button>
+                {explaining ? (
+                  <button className="ghost-btn danger-text" onClick={() => explainAbortRef.current?.abort()} type="button">Остановить</button>
+                ) : null}
+              </div>
+
+              {explaining && !explanation ? <div className="loading-strip">Spark готовит разбор...</div> : null}
+              {explanation ? (
+                <div className="ege-explanation">
+                  <div className="message-meta">
+                    <strong>Разбор Spark</strong>
+                    <span>ЕГЭ профиль</span>
+                  </div>
+                  <div className="message-content">{renderMessageNodes(explanation)}</div>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="empty-state">Для этого номера пока нет заданий. Добавим банк постепенно.</div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
   const MODEL_LABEL = "Mistral Nemo";
   const [theme, setTheme] = useState("dark");
@@ -182,6 +414,7 @@ export default function App() {
   const [sendError, setSendError] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [responseMode, setResponseMode] = useState("balanced");
+  const [workspace, setWorkspace] = useState("ege");
   const [titleDraft, setTitleDraft] = useState("");
   const [editingTitle, setEditingTitle] = useState(false);
 
@@ -324,6 +557,7 @@ export default function App() {
     );
 
     const nextChat = data.chat;
+    setWorkspace("chat");
     setChats((current) => [nextChat, ...current]);
     setActiveChatId(nextChat.id);
     setMessages([]);
@@ -500,6 +734,23 @@ export default function App() {
           <span>Новый чат</span>
         </button>
 
+        <div className="workspace-switch">
+          <button
+            className={`workspace-btn ${workspace === "ege" ? "active" : ""}`}
+            onClick={() => setWorkspace("ege")}
+            type="button"
+          >
+            ЕГЭ профиль
+          </button>
+          <button
+            className={`workspace-btn ${workspace === "chat" ? "active" : ""}`}
+            onClick={() => setWorkspace("chat")}
+            type="button"
+          >
+            AI-чат
+          </button>
+        </div>
+
         <div className="sidebar-section-title">История</div>
         <div className="chat-list">
           {chats.length === 0 ? <div className="empty-state">Пока нет чатов. Начни диалог, и история появится здесь.</div> : null}
@@ -508,6 +759,7 @@ export default function App() {
               key={chat.id}
               className={`chat-card ${chat.id === activeChatId ? "active" : ""}`}
               onClick={() => {
+                setWorkspace("chat");
                 setActiveChatId(chat.id);
                 if (window.innerWidth < 960) {
                   setSidebarOpen(false);
@@ -552,7 +804,7 @@ export default function App() {
             </button>
             <div className="topbar-copy">
               <div className="topbar-row">
-                {editingTitle ? (
+                {workspace === "chat" && editingTitle ? (
                   <input
                     className="topbar-title-input"
                     value={titleDraft}
@@ -568,15 +820,17 @@ export default function App() {
                     autoFocus
                   />
                 ) : (
-                  <div className="topbar-title">{activeChat?.title || "Новый диалог"}</div>
+                  <div className="topbar-title">{workspace === "ege" ? "Подготовка к ЕГЭ" : activeChat?.title || "Новый диалог"}</div>
                 )}
-                {activeChat ? (
+                {workspace === "chat" && activeChat ? (
                   <button className="title-edit-btn" onClick={() => setEditingTitle(true)} aria-label="Переименовать чат">
                     <Icons.edit />
                   </button>
                 ) : null}
               </div>
-              <div className="topbar-subtitle">Наставник объясняет, а не решает за ученика</div>
+              <div className="topbar-subtitle">
+                {workspace === "ege" ? "Профильная математика: задачи, проверка, разбор" : "Наставник объясняет, а не решает за ученика"}
+              </div>
             </div>
           </div>
           <div className="topbar-actions">
@@ -587,6 +841,9 @@ export default function App() {
           </div>
         </header>
 
+        {workspace === "ege" ? (
+          <EgeTrainer accessToken={accessToken} />
+        ) : (
         <section className={`messages-panel ${messages.length === 0 ? "messages-panel-empty" : ""}`}>
           {messagesLoading ? <div className="loading-strip">Подгружаем историю чата...</div> : null}
           {messages.length === 0 ? (
@@ -634,7 +891,9 @@ export default function App() {
             </div>
           )}
         </section>
+        )}
 
+        {workspace === "chat" ? (
         <footer className="composer-shell">
           {sendError ? <div className="form-error inline-error">{sendError}</div> : null}
           <div className="mode-switcher">
@@ -667,6 +926,7 @@ export default function App() {
           </div>
           <div className="composer-hint">Enter отправляет сообщение, Shift+Enter переносит строку.</div>
         </footer>
+        ) : null}
       </main>
     </div>
   );

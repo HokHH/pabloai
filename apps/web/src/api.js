@@ -77,3 +77,53 @@ export async function streamChatMessage(chatId, content, mode, accessToken, onCh
     }
   }
 }
+
+export async function streamEgeExplanation(taskId, mode, studentAnswer, accessToken, onChunk, signal) {
+  const response = await fetch(`${API_BASE}/ege/tasks/${taskId}/explain/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    credentials: "include",
+    body: JSON.stringify({ mode, studentAnswer }),
+    signal,
+  });
+
+  if (!response.ok || !response.body) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || "Не удалось получить разбор задания");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let raw = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    raw += decoder.decode(value, { stream: true });
+    const events = raw.split("\n\n");
+    raw = events.pop() || "";
+
+    for (const event of events) {
+      const lines = event.split("\n");
+      for (const line of lines) {
+        if (!line.startsWith("data:")) continue;
+        const payload = line.replace(/^data:\s*/, "").trim();
+        if (!payload || payload === "[DONE]") continue;
+
+        try {
+          const json = JSON.parse(payload);
+          const delta = json.choices?.[0]?.delta?.content;
+          if (delta) {
+            onChunk(delta);
+          }
+        } catch {
+          // Ignore non-JSON meta events in the chunk parser.
+        }
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ import rateLimit from "express-rate-limit";
 import { env } from "./config/env.js";
 import { authRouter } from "./routes/auth.js";
 import { chatRouter } from "./routes/chats.js";
+import { egeRouter } from "./routes/ege.js";
 import { requireAuth } from "./middleware/auth.js";
 import { errorHandler, notFound } from "./middleware/error.js";
 
@@ -40,6 +41,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/auth", authRouter);
 app.use("/api/chats", requireAuth, chatRouter);
+app.use("/api/ege", requireAuth, egeRouter);
 
 app.use(notFound);
 app.use(errorHandler);

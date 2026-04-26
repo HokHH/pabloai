@@ -21,6 +21,7 @@ model User {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   chats          Chat[]
+  egeAttempts    EgeAttempt[]
   refreshTokens  RefreshToken[]
 }
 
@@ -56,4 +57,19 @@ model RefreshToken {
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model EgeAttempt {
+  id          String   @id @default(cuid())
+  taskId      String
+  taskNumber  Int
+  topic       String
+  userAnswer  String
+  correct     Boolean
+  createdAt   DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, taskNumber])
 }
